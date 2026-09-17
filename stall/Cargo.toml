@@ -1,0 +1,11 @@
+[package]
+name = "stall"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Stall detection and direction sequencing for a rope-traversing prop carriage."
+
+# Deliberately empty. This crate must stay free of hardware dependencies:
+# no embassy, no HAL, no embedded-hal traits. It takes numbers in and returns
+# a desired output state, so the whole thing is testable with `cargo test`.
+[dependencies]

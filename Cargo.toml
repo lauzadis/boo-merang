@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["stall"]
+# `firmware` is deliberately NOT a workspace member: it builds for
+# thumbv6m-none-eabi with its own .cargo/config.toml and profile settings,
+# and keeping it out lets `cargo test` at the root run the host tests without
+# dragging embedded-only dependencies into the resolve.
+exclude = ["firmware"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"

@@ -1,0 +1,14 @@
+[target.thumbv6m-none-eabi]
+# No debug probe on this board, so flashing is BOOTSEL mass-storage:
+# hold BOOTSEL while plugging the Pico in, then `cargo run --release`.
+# `elf2uf2-rs -d` converts the ELF to UF2 and copies it to the mounted
+# RPI-RP2 drive; the Pico reboots into the new firmware by itself.
+#
+#   cargo install elf2uf2-rs --locked
+runner = "elf2uf2-rs -d"
+
+[build]
+target = "thumbv6m-none-eabi"
+
+[env]
+DEFMT_LOG = "off"

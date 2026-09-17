@@ -1,0 +1,42 @@
+[package]
+name = "firmware"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Pico firmware for the flying ghost prop carriage."
+
+[dependencies]
+stall = { path = "../stall" }
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1" }
+embassy-rp = { version = "0.10.0", features = ["rp2040", "time-driver", "critical-section-impl"] }
+
+cortex-m = { version = "0.7.9", features = ["inline-asm"] }
+cortex-m-rt = "0.7.6"
+
+# A panic resets the board rather than halting it. Halting would leave the
+# motor driver latched at whatever duty it was running, with nobody on site;
+# a reset drops STBY, coasts the motor, and comes back up.
+panic-reset = "0.1.1"
+
+log = { version = "0.4.34", optional = true }
+embassy-usb-logger = { version = "0.6.0", optional = true }
+
+[features]
+default = ["usb-log"]
+# CSV telemetry over USB CDC. Compile this out for the deployed build.
+usb-log = ["dep:log", "dep:embassy-usb-logger"]
+# Replace the ADC with a compiled-in sample trace, to prove on-target timing
+# matches the host tests without needing the motor, driver or sense resistor.
+replay = []
+
+[profile.release]
+debug = true          # symbols cost nothing in flash, and elf2uf2 strips them
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+overflow-checks = true # a panic resets; silent wraparound in motor control does not
+
+[profile.dev]
+opt-level = 1          # debug builds are too slow to keep a 10ms tick otherwise
