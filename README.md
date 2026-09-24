@@ -45,17 +45,30 @@ the Pico reboots into the new firmware on its own.
 
 ## Wiring
 
-| Pico pin | Signal | To |
-|---|---|---|
-| GPIO16 | `PWMA` | TB6612FNG `PWMA` |
-| GPIO14 | `AIN1` | TB6612FNG `AIN1` |
-| GPIO15 | `AIN2` | TB6612FNG `AIN2` |
-| GPIO13 | `STBY` | TB6612FNG `STBY` |
-| GPIO26 | `SENSE` (ADC0) | top of the current-sense resistor |
-| GND | — | **battery negative**, not the driver's GND pin |
+Board is a Pico W (2022). The wireless chip (CYW43439) is never touched by
+this firmware — no `cyw43` driver, no WiFi — and the pins below avoid its four
+dedicated GPIOs (23, 24, 25, 29), so the pin plan and everything downstream is
+identical to a plain Pico.
+
+| Pico W pin | Header pin # | Signal | To |
+|---|---|---|---|
+| GPIO16 | 21 | `PWMA` | TB6612FNG `PWMA` |
+| GPIO14 | 19 | `AIN1` | TB6612FNG `AIN1` |
+| GPIO15 | 20 | `AIN2` | TB6612FNG `AIN2` |
+| GPIO13 | 17 | `STBY` | TB6612FNG `STBY`, with a 10kΩ pulldown to GND at the driver |
+| GPIO26 | 31 | `SENSE` (ADC0) | far side of the 1kΩ series resistor off the sense node |
+| 3V3(OUT) | 36 | logic supply | TB6612FNG `VCC` |
+| GND | 38 (any GND pin works) | — | **battery negative**, not the driver's GND pin |
+| VSYS | 39 | board power | battery positive (see Power below) |
 
 Pin numbers live in one block at the top of `firmware/src/main.rs::main` —
 change them there, nowhere else.
+
+The STBY pulldown isn't optional: between reset and the first line of `main`
+the pin is a floating input, and a floating STBY on a driver wired to a live
+motor and battery is not a state to leave to chance. It's called out in a
+comment in `main.rs` but is easy to miss when building the BOM, so it's listed
+here too.
 
 Current sense: 0.47Ω 1W resistor in the motor's ground return (driver GND to
 battery negative), with a 1kΩ series resistor + 10µF to ground feeding the ADC
@@ -63,13 +76,19 @@ pin. **The 0.47Ω value is a placeholder** — measure the motor's actual runnin
 and stall current before trusting the stall-detection ratio; see the constant
 in `firmware/src/main.rs`.
 
+Power: the 3xAA pack (~3.3–4.5V) feeds both TB6612FNG `VM` and Pico `VSYS`
+directly — `VSYS` accepts 1.8–5.5V, well within range even as the pack sags.
+Pico's onboard diode between `VBUS` and `VSYS` means it's safe to also have
+USB plugged in at the same time (e.g. for the telemetry capture described
+below); the two supplies don't fight.
+
 ## Tuning `stall_ratio_pct` and friends
 
 The plan is to have the prop owner plug the Pico into a laptop and capture the
 CSV log while it runs:
 
 ```
-screen /dev/tty.usbmodemXXXX 115200   # or any serial monitor
+screen /dev/ttyACM0 115200   # Linux; macOS is /dev/tty.usbmodemXXXX. Any serial monitor works.
 ```
 
 Every tick (or every 10th, by default) prints

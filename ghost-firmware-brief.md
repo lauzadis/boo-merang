@@ -21,7 +21,11 @@ our own stall detection for direction reversal.
 
 ## Hardware
 
-- Raspberry Pi Pico (RP2040). **Not** a Pico W. No debug probe available.
+- Raspberry Pi Pico W (RP2040 + CYW43439 wireless chip, 2022 board). The
+  wireless chip is never initialized by this firmware and its four dedicated
+  GPIOs (23, 24, 25, 29 — SPI to the CYW43439, not general-purpose on this
+  board) are avoided by the pin assignment below, so a plain Pico works
+  identically. No debug probe available either way.
 - TB6612FNG dual motor driver breakout (only channel A used).
 - Power: 3x AA alkaline, nominally 4.5V, sagging toward ~3.3V over an evening.
   TB6612FNG motor supply minimum is 2.7V.

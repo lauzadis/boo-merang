@@ -218,11 +218,11 @@ fn baseline_follows_battery_sag() {
         "a slow sag from 250 to 150 must not reverse"
     );
     // And the threshold followed it down rather than sitting at a fixed number:
-    // 2.5 x 150 = 375 counts, give or take the EMA's lag and the noise.
+    // 1.4 x 150 = 210 counts, give or take the EMA's lag and the noise.
     let thr = t.det.threshold_counts();
     assert!(
-        (330..=420).contains(&thr),
-        "threshold ended at {} counts, expected it to track the sag down to ~375",
+        (180..=240).contains(&thr),
+        "threshold ended at {} counts, expected it to track the sag down to ~210",
         thr
     );
 }
@@ -389,11 +389,12 @@ fn blanking_is_raised_to_cover_the_ramp() {
 /// The threshold floor keeps a dead sense line from reading as a stall.
 #[test]
 fn threshold_floor_holds_when_current_is_near_zero() {
+    // Floor threshold is min_baseline_counts(40) * stall_ratio_pct(112%) = 44.
     let cfg = no_timeout();
-    let t = run(cfg, 0, 30_000, |ms| if ms < 20_000 { 0 } else { 60 });
+    let t = run(cfg, 0, 30_000, |ms| if ms < 20_000 { 0 } else { 40 });
     assert_eq!(
         t.events,
         vec![],
-        "60 counts is under the floor-derived threshold"
+        "40 counts is under the floor-derived threshold"
     );
 }

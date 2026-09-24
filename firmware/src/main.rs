@@ -80,17 +80,27 @@ const OVERSAMPLE: u16 = 16;
 /// Motor PWM frequency. Above audibility, below anything the TB6612FNG minds.
 const PWM_HZ: u32 = 25_000;
 
+/// Current sense resistor in the motor's ground return, between the driver's
+/// GND pin and battery negative. PLACEHOLDER VALUE, pending measurement of
+/// the motor's running and stall current. Everything downstream (the stall
+/// ratio, the ADC headroom, whether 3xAA can even deliver the current)
+/// depends on this number, so measure it before trusting any of it.
+///
+/// Not read anywhere in this file -- the detector's threshold is a ratio of
+/// a self-tracking baseline, not an absolute current, so nothing here needs
+/// to convert counts to amps for correctness. This constant exists purely so
+/// there is one documented place to update when the physical resistor
+/// changes, instead of a stale number scattered across comments.
+#[allow(dead_code)]
+const SENSE_RESISTOR_OHMS: f32 = 0.47;
+
 // ---------------------------------------------------------------------------
 // Hardware notes that are not expressible in code
 // ---------------------------------------------------------------------------
 //
-// Current sense: a resistor in the motor's ground return, between the driver's
-// GND pin and battery negative. PLACEHOLDER VALUE -- 0.47 ohm 1W -- pending
-// measurement of the motor's running and stall current. Everything downstream
-// (the stall ratio, the ADC headroom, whether 3xAA can even deliver the
-// current) depends on this number, so measure it before trusting any of it.
-//
-//   At 0.47 ohm: 1A -> 470mV -> ~583 counts of a 3.3V 12-bit ADC.
+//   At SENSE_RESISTOR_OHMS = 0.47: 1A -> 470mV -> ~583 counts of a 3.3V
+//   12-bit ADC. Keep this comment's arithmetic in sync with the constant
+//   above if the resistor changes.
 //
 // The sense line reaches the ADC through a 1k series resistor with 10uF to
 // ground: ~10ms, which is one tick, so a step in current is ~63% visible on the

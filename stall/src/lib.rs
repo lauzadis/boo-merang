@@ -96,12 +96,51 @@ pub struct Config {
 }
 
 impl Default for Config {
-    /// PROVISIONAL. These are guesses.
+    /// MOSTLY PROVISIONAL. `min_baseline_counts` is still a guess.
+    /// `stall_ratio_pct` is measured, but sitting in a genuinely narrow
+    /// window -- read on before touching it.
     ///
-    /// They are placeholders until the motor's running and stall current are
-    /// measured with the real sense resistor in circuit, at which point
-    /// `stall_ratio_pct` and `min_baseline_counts` in particular want revisiting
-    /// against a CSV capture from the prop itself.
+    /// This motor/battery/sense-resistor combination does not produce much
+    /// daylight between running and stalled current. `stall_ratio_pct` went
+    /// 250 (placeholder) -> 140 -> 115 -> 108, chasing real stall captures
+    /// that kept coming in lower than expected (`VM` shares a node with the
+    /// Pico's `VSYS`, and USB backfeeds that node to ~4.6-5V through the
+    /// onboard VBUS->VSYS diode when plugged in for logging, so USB-powered
+    /// captures run hotter than true battery-only current -- but even
+    /// accounting for that, a firm no-slip stall in `stall_test5.log` peaked
+    /// at only ~113.6% of baseline). 108 turned out to be inside the noise
+    /// floor: `steady_state_does_not_reverse` (60s of realistic ±6% noise)
+    /// started firing false reversals at 108-109%, and only cleared at 110%.
+    /// So the entire usable window, measured tonight, is roughly
+    /// **110-113%** -- about 3 points wide. 112 sits in the middle of it on
+    /// purpose, rather than hugging either edge.
+    ///
+    /// A window this narrow is a real property of this hardware, not a
+    /// tuning mistake, and it deserves attention beyond just picking a
+    /// number inside it:
+    /// - It was only measured from a handful of hand-stall captures under
+    ///   USB power. More real battery-only measurements (a data-only USB
+    ///   cable would let logging happen without contaminating `VM`) would
+    ///   firm this up considerably.
+    /// - More ADC oversampling (`OVERSAMPLE` in `firmware/src/main.rs`,
+    ///   currently 16) is worth trying -- real captured noise (~±2%) was
+    ///   already tighter than this test's ±6% synthetic model, so there may
+    ///   be more margin available for free.
+    /// - The motor has two extra leads (see teardown notes) that look like a
+    ///   shaft-rotation sensor, unused by this design. If this margin proves
+    ///   too thin in practice, that's a plausible path to a second, current-
+    ///   independent stall signal rather than squeezing this one further.
+    /// - The consequence of a false trigger (an early reversal) is much
+    ///   milder than a missed stall (grinding against the rope stopper for
+    ///   up to `max_traverse_ms`), which is part of why erring toward the
+    ///   lower end of the window is reasonable for this application.
+    ///
+    /// STALE INPUT WARNING: 112 was measured with `cruise_duty_permille` at
+    /// 700. It has since been raised to 1000 (the stock board ran noticeably
+    /// faster, per field feedback), which raises motor speed and therefore
+    /// back-EMF at stall-adjacent RPM -- the measured ratio and the 110-113%
+    /// window above are not re-validated against the new duty and may have
+    /// shifted. Needs a fresh CSV capture before this is trusted again.
     ///
     /// `baseline_shift` is the one value here that is *not* a free guess. The
     /// baseline chases the sample, so a stall only fires if current rises faster
@@ -117,12 +156,12 @@ impl Default for Config {
         Self {
             ramp_ms: 500,
             blank_ms: 800,
-            stall_ratio_pct: 250,
+            stall_ratio_pct: 112,
             confirm_samples: 5,
-            max_traverse_ms: 180_000,
+            max_traverse_ms: 300_000,
             baseline_shift: 12,
             min_baseline_counts: 40,
-            cruise_duty_permille: 700,
+            cruise_duty_permille: 1000,
         }
     }
 }
