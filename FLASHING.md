@@ -11,13 +11,13 @@ laptop and `screen /dev/ttyACM0 115200` (or `/dev/tty.usbmodemXXXX` on
 macOS) — it runs fine on battery alone either way, USB is only needed for
 logging.
 
-1. Disconnect the battery pack.
-2. Hold **BOOTSEL** on the Pico W, plug in USB, release. A mass-storage drive
+1. Turn off the battery pack.
+2. Hold **BOOTSEL** (the small white button) on the Pico W, plug in USB, release. A mass-storage drive
    named **RPI-RP2** mounts.
 3. Drag the `.uf2` file onto it. It'll unmount itself in a couple seconds —
    that's the board rebooting into the new firmware. No prompts, nothing else
    to confirm.
-4. Reconnect the battery pack and test.
+4. Turn the battery pack back on and test.
 
 If `RPI-RP2` doesn't show up: you're probably on a charge-only cable, or
 released BOOTSEL before plugging in. Retry with a known data cable.
