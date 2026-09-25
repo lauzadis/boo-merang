@@ -156,14 +156,17 @@ fn steady_state_does_not_reverse() {
 /// 3. A stall fires, promptly.
 #[test]
 fn stall_fires_once() {
+    let cfg = no_timeout();
     let mut seed = 7;
     let stall_at = 5_000;
-    let t = run(no_timeout(), 0, 8_000, |ms| {
+    // Hitting a stopper: current rises 13 counts/ms and stays up, capped at 900.
+    let rise_per_ms = 13;
+    let cap = 650; // 250 + 650 = 900
+    let t = run(cfg, 0, 8_000, |ms| {
         if ms < stall_at {
             steady(&mut seed, 250, 15)
         } else {
-            // Hitting a stopper: current rises over ~50ms and stays up.
-            let r = ((ms - stall_at) * 13).min(650);
+            let r = ((ms - stall_at) * rise_per_ms).min(cap);
             (250 + r) as u16
         }
     });
@@ -176,9 +179,18 @@ fn stall_fires_once() {
     let ev = t.events[0];
     assert_eq!(ev.reason, Reason::Stall);
     assert_eq!(ev.new_dir, Direction::Reverse);
-    // Threshold sits at 2.5 x 250 = 625 counts, crossed ~30ms into the rise;
-    // confirm_samples then costs 5 more ticks.
-    let latest = stall_at + 50 + (u32::from(Config::default().confirm_samples) + 2) * TICK_MS;
+    // Threshold sits at stall_ratio_pct% of 250; work out how far into the rise
+    // that gets crossed, then allow confirm_samples ticks of debounce on top.
+    // (If stall_ratio_pct is high enough that this never crosses within `cap`,
+    // the trace itself needs a taller ceiling than 900 -- not a config problem.)
+    let over_baseline = (250 * cfg.stall_ratio_pct / 100).saturating_sub(250);
+    assert!(
+        over_baseline <= cap,
+        "stall_ratio_pct {} is too high for this trace's 900-count ceiling",
+        cfg.stall_ratio_pct
+    );
+    let ms_to_cross = over_baseline.div_ceil(rise_per_ms);
+    let latest = stall_at + ms_to_cross + (u32::from(cfg.confirm_samples) + 2) * TICK_MS;
     assert!(
         (stall_at..=latest).contains(&ev.at_ms),
         "reversal at {}ms, expected within {}..={}",
@@ -206,9 +218,10 @@ fn isolated_spikes_are_rejected() {
 ///    threshold.
 #[test]
 fn baseline_follows_battery_sag() {
+    let cfg = no_timeout();
     let mut seed = 11;
     let sag_ms = 300_000;
-    let t = run(no_timeout(), 0, sag_ms, |ms| {
+    let t = run(cfg, 0, sag_ms, |ms| {
         let level = 250 - (100 * ms as i32 / sag_ms as i32);
         steady(&mut seed, level, 15)
     });
@@ -217,13 +230,15 @@ fn baseline_follows_battery_sag() {
         vec![],
         "a slow sag from 250 to 150 must not reverse"
     );
-    // And the threshold followed it down rather than sitting at a fixed number:
-    // 1.4 x 150 = 210 counts, give or take the EMA's lag and the noise.
+    // And the threshold followed it down rather than sitting at a fixed number.
+    // Allow +-15% around stall_ratio_pct% of 150 for the EMA's lag and the noise.
+    let expected = 150 * cfg.stall_ratio_pct / 100;
+    let lo = (expected * 85 / 100) as u16;
+    let hi = (expected * 115 / 100) as u16;
     let thr = t.det.threshold_counts();
     assert!(
-        (180..=240).contains(&thr),
-        "threshold ended at {} counts, expected it to track the sag down to ~210",
-        thr
+        (lo..=hi).contains(&thr),
+        "threshold ended at {thr} counts, expected it to track the sag down to ~{expected}"
     );
 }
 
@@ -389,12 +404,14 @@ fn blanking_is_raised_to_cover_the_ramp() {
 /// The threshold floor keeps a dead sense line from reading as a stall.
 #[test]
 fn threshold_floor_holds_when_current_is_near_zero() {
-    // Floor threshold is min_baseline_counts(40) * stall_ratio_pct(112%) = 44.
     let cfg = no_timeout();
-    let t = run(cfg, 0, 30_000, |ms| if ms < 20_000 { 0 } else { 40 });
+    let floor_threshold = cfg.min_baseline_counts * cfg.stall_ratio_pct / 100;
+    // Comfortably under the floor threshold, not right on top of it.
+    let probe = (floor_threshold * 9 / 10) as u16;
+    let t = run(cfg, 0, 30_000, |ms| if ms < 20_000 { 0 } else { probe });
     assert_eq!(
         t.events,
         vec![],
-        "40 counts is under the floor-derived threshold"
+        "{probe} counts should be under the floor-derived threshold of {floor_threshold}"
     );
 }
